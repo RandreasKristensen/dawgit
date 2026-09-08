@@ -1,0 +1,6 @@
+# The exported archives are ZIP containers and must never be line-ending converted.
+*.DAWproject binary
+*.dawproject binary
+
+# Generated evidence: keep it byte-stable across platforms.
+reports/** text eol=lf
