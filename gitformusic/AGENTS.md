@@ -1,3 +1,3 @@
 # AGENTS.md
 
-Use Angular naming conventions in the Angular project, and rust naming conventions in the rust project.
+- Never git add, commit, push, or pull anything. Only safe read only git commands.
