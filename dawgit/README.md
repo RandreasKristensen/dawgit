@@ -24,9 +24,25 @@ engine. There is no UI and no backend here — see
 - [`core/MVP.md`](core/MVP.md) — the local, single-user, CLI-only slice being built
   first, and the experiment it is designed to run.
 - [`core/Requirements.md`](core/Requirements.md) — settled long-term requirements,
-  and the open questions that still need deciding.
+  and the open questions that still need deciding, ordered by when the answer is
+  needed.
 - [`.docs/ARCHITECTURE.md`](.docs/ARCHITECTURE.md) — architecture and diagrams,
   starting with why DAWproject is the repository format and what follows from it.
+- [`.docs/DAWproject-format-test/`](.docs/DAWproject-format-test/README.md) — the
+  measurement everything else is waiting on.
+
+## What happens next
+
+In order, and none of it is Rust yet:
+
+1. **Run the format test.** Waveform Free first — no licence, no cost. It measures
+   whether a session survives a same-DAW round trip, and which
+   [correspondence tier](core/Requirements.md#element-correspondence) each class of
+   element lands on.
+2. **Take the result to Bitwig.** The format is young and still growing, and the
+   upstream repository responds to measured artifacts rather than feature requests.
+   See [`core/MVP.md`](core/MVP.md#after-the-test--upstream).
+3. **Then build the MVP**, against whatever the measurement actually showed.
 
 ## Build
 

@@ -122,6 +122,78 @@ reserved for the operating system, as in [Non-functional](#non-functional).
 - An object index is required for reasonable lookup performance once the object count
   is large.
 
+## Element correspondence
+
+Diff and merge both reduce to one question: **given an element in commit A, which
+element in commit B is the same element?** DAWproject does not answer this uniformly,
+so the core answers it with a ladder of strategies and records which one was used.
+
+| Tier | Strategy | Applies to | Confidence |
+| --- | --- | --- | --- |
+| 1 | Element `id` | Tracks, channels, devices, sends, scenes, timelines, automation lanes | Exact, when ids persist |
+| 2 | Content key — media path + `playStart`/`playStop` | Audio clips | Exact when keys are unique |
+| 3 | Assignment over a colliding key group, minimising displacement | Repeated audio clips | Inferred |
+| 4 | Name + position | Tracks with unstable ids, MIDI clips, structure | Inferred |
+| 5 | Opaque — changed or unchanged only | Plugin state, unrecognised constructs | None |
+
+### Why it is a ladder and not an assumption
+
+Three facts from
+[`Project.xsd`](https://github.com/bitwig/dawproject/blob/main/Project.xsd) fix this
+shape, and none of them is a matter of implementation quality:
+
+- **Clips carry no `id`.** The `clip` type extends `nameable`; `id` is declared on
+  `referenceable`. This is true in every DAW and cannot change without a schema
+  revision. Tier 2 is not a fallback for the clip layer — it is the only thing the
+  format permits.
+- **Tracks, channels, devices, sends and timelines do carry `id`**, including the
+  `Audio` element nested inside a clip and the `Points` container that holds an
+  automation lane. Tier 1 is available for these *if* a DAW's exporter keeps them
+  stable, which is what the format test measures.
+- **Leaf data carries no identity at all.** The `point` and `note` types have no `id`
+  and no `name` — only `time`, and `value`/pitch. For these, content *is* identity:
+  two points with the same time and value are the same point in any meaningful sense,
+  so matching them by value is correct rather than a degradation.
+
+### Requirements
+
+- The core must attempt correspondence in tier order and stop at the first tier that
+  resolves an element unambiguously.
+- **Every match must record the tier that produced it**, and that tier must be
+  available to anything consuming the diff — a human reading history, and the merge
+  path deciding what it is willing to combine.
+- **The core must never present an inferred match as an exact one.** Where tiers 3 or
+  4 cannot resolve an element confidently, reporting "changed, cannot attribute" is
+  required; guessing silently is not permitted. A diff that confidently misattributes
+  a change is worse than one that admits uncertainty, because it destroys the user's
+  reason to trust any of it.
+- Which tiers are available is a **measured property of a DAW's exporter**, not a
+  constant. It is established by the format test and recorded per supported DAW, in
+  the same way the rest of [supporting a DAW](#supporting-a-daw) is evidence-driven.
+- Tier 3 must be a global assignment over a colliding key group — minimising total
+  displacement — rather than greedy nearest-position matching, which produces
+  order-dependent results on the exact case it exists to handle.
+- Merge may rely on tiers 1 and 2. **Merge must not rely on tiers 3 and 4 without an
+  explicit human confirmation**, because an inferred correspondence that is wrong
+  silently combines the wrong material.
+
+### Prior art
+
+Establishing correspondence between timelines with no shared identity is a solved
+commercial problem in audio post-production, where a picture editor's changes must be
+re-synced into a sound editor's session. **Conformalizer** (Emmy Award-winning),
+**Matchbox** (The Cargo Cult, supported in Pro Tools 2025.6) and
+**[Vordio](https://vordio.net/reconform/)** all do this, classifying every clip as
+moved, edge-edited, added, deleted or split. Study them before deriving anything.
+
+Two caveats on transferring the technique. Those tools serve a domain where nearly
+every element is a clip referencing external media, so their natural key is nearly
+always unique; music production violates that constantly, which is the entire reason
+tier 3 exists here. And Matchbox has moved toward matching on picture content rather
+than declared metadata — the analogue here is matching on audio content hashes, which
+the content-addressed object store already provides for free and which should be
+preferred over declared paths wherever the two disagree.
+
 ## Branching and merge model
 
 - Branching is a first-class, heavily used feature rather than an advanced escape
@@ -160,12 +232,14 @@ at general merge rather than a permanently restricted subset.
   plugin can only be resolved by choosing one. This is structural, not a matter of
   effort, and no amount of openness in the surrounding format changes it. The same
   applies to opaque files tracked alongside the session.
-- **A prerequisite that must be measured first: stable element identity across
-  exports.** Merging two structured documents requires knowing which elements
-  correspond. If a DAW regenerates element ids on every export, two exports of an
-  unchanged session appear entirely different, and general merge is not possible —
-  diff is badly degraded too. See
-  [MVP.md](MVP.md#step-zero-the-round-trip-experiment).
+- **A prerequisite that must be measured first: which correspondence tiers this DAW's
+  exports support.** Merging two structured documents requires knowing which elements
+  correspond, and [Element correspondence](#element-correspondence) describes how the
+  core establishes that. Merge may rely on tiers 1 and 2; it may not rely on tiers 3
+  and 4 without explicit human confirmation. If a DAW regenerates ids on every export,
+  tier 1 is lost and merge is restricted to what content keys can resolve — a real
+  constraint, but not the end of merge, since the clip layer never had ids to lose.
+  See [MVP.md](MVP.md#step-zero-the-round-trip-experiment).
 - Anticipated interface work, to be built when the capability exists and the product
   deems it a priority: a merge editor for simple parameter-level differences (e.g.
   track volumes), and a diff editor for edits that trim or cut existing material
@@ -178,6 +252,10 @@ at general merge rather than a permanently restricted subset.
   and automation — rather than reporting only "the project file changed".
 - Diff output must be usable both by a human reading history and, in stage two, by
   the merge path deciding what can be combined.
+- Diff must distinguish **moved** from **removed and re-added**, which is the whole
+  reason [element correspondence](#element-correspondence) exists, and must carry the
+  correspondence tier through to its output so the reader knows which lines are exact
+  and which are inferred.
 - History listing must work without parsing anything: commit metadata alone.
 
 ## Working tree
@@ -259,63 +337,151 @@ These are the things this document deliberately does **not** answer yet. Each on
 needs a decision, a discussion, or research before the corresponding part of the core
 can be built with confidence.
 
-1. **Triggering and automating the export.** DAWproject is written by an explicit
-   menu action (in Studio One, `File > Convert To > DAWproject File…`, Professional
-   edition only), and the DAWs involved offer no scripting hook to automate it. So
-   every commit depends on the user remembering a manual step. Does the core simply
-   detect and warn about staleness, drive the export some other way, or accept that
-   commits are export-gated? This is the biggest usability risk in the whole design.
-2. **Whether opaque files are worth tracking at all.** The native project file is
-   currently tracked as an opaque blob, which is cheap for a Studio One `.song` but
-   expensive for DAWs whose native format embeds all audio in one monolithic file.
-   If the same-DAW round trip proves faithful, tracking it may be unnecessary
-   entirely; if not, some native formats may be too large to store whole. Which
-   opaque files are worth keeping, and does the answer differ per DAW?
-3. **Content-defined chunking and compression.** Unpacking the archive removes most
-   of the pressure here, since audio deduplicates and only small XML changes per
-   commit. Is any chunking or packfile layer needed at all for realistic sessions, or
-   does raw per-object storage suffice? The MVP's measured growth (see
-   [MVP.md](MVP.md#success-criteria)) is the evidence.
-4. **Canonical repack fidelity.** A repacked `.dawproject` is byte-identical per
-   entry but not as a container. Do the target DAWs accept a regenerated archive in
-   all cases — entry ordering, compression method, directory layout — and what is the
+They are ordered by **when the answer is needed**, not by how interesting they are. A
+question in a later band is not less important — it is less urgent, and working on it
+now would be working ahead of the evidence.
+
+| Band | Meaning |
+| --- | --- |
+| **P0** | Blocks the next action, or gets more expensive the longer it waits |
+| **P1** | Blocks the MVP |
+| **P2** | Blocks the first networked milestone |
+| **P3** | Blocks calling this a product |
+
+### P0 — decide now
+
+1. **What is the upstream ask, and who owns it?** The step after the format test is a
+   conversation with Bitwig, not more code — see
+   [MVP.md](MVP.md#after-the-test--upstream). The cheap ask is a stability guarantee
+   on ids that already exist; the expensive one is a scriptable export hook. What
+   exactly is being asked for, backed by which measurements, and does it arrive as a
+   pull request or as measured evidence on
+   [issue #40](https://github.com/bitwig/dawproject/issues/40)? The format is still
+   being extended — lyrics, chords and video are on its roadmap — so this window is
+   open now and will not stay open.
+
+2. **Does the licence match the goal?** The core is GPL-3.0 while DAWproject itself is
+   MIT. GPL-3.0 on an embeddable library with a planned C FFI forecloses the outcome
+   this project would most want: a DAW vendor or the format's authors adopting the
+   engine. If the goal is a hosted coordination service, AGPL is the coherent choice;
+   if the goal is to become infrastructure, a permissive licence is. The current
+   licence fits neither. Relicensing costs one commit today and unanimous consent from
+   every contributor later — this is the cheapest it will ever be to fix.
+
+3. **Under what evidence would the DAWproject bet be revisited?** The bet is
+   deliberate and settled — see
+   [ARCHITECTURE.md](../.docs/ARCHITECTURE.md#why-dawproject-and-not-a-native-format).
+   Recording the conditions that would reopen it is what keeps it a decision rather
+   than an attachment. Candidate triggers: the format test lands on
+   [what would actually be fatal](../.docs/DAWproject-format-test/README.md#what-would-actually-be-fatal);
+   no DAW gains a scriptable export within a defined window; or format adoption
+   stalls.
+
+### P1 — blocks the MVP
+
+4. **Triggering and automating the export.** DAWproject is written by an explicit menu
+   action, and the DAWs involved offer no documented scripting hook, so every commit
+   depends on the user remembering a manual step. This remains the biggest usability
+   risk in the whole design. Precedent says it need not be permanent — Avid shipped a
+   Pro Tools Scripting SDK covering session open, save and export in 2022.12, and
+   Bitwig publishes a documented controller API — so the question is whether the core
+   detects and warns about staleness, drives the export some other way, or accepts
+   that commits are export-gated until a vendor opens the door.
+   **Cheapest next probe:** does Bitwig's controller API already expose the DAWproject
+   export action? If it does, this is solved on one DAW today.
+
+5. **How does tier 3 disambiguate colliding keys?** A loop dropped at sixteen
+   positions produces sixteen identical `(path, playStart, playStop)` keys, and only
+   position separates them — which is exactly what an edit changes. Global assignment
+   minimising total displacement is the stated requirement, but what is the cost
+   function, what happens when a clip is both moved *and* edge-edited, and what is the
+   confidence threshold below which the core refuses to attribute rather than
+   guessing?
+
+6. **How are MIDI clips matched?** They carry no `id` and no media key, so they fall
+   straight to tier 4, name and position. In a MIDI-heavy session that is most of the
+   arrangement. Is name-and-position good enough, or does the core need to match on
+   note content — and if the latter, how much can a clip's notes change before it
+   stops being the same clip?
+
+7. **How is tier surfaced to the user?** Every match records the tier that produced
+   it, but a CLI diff annotating every line with a confidence level is unreadable.
+   What is the actual presentation — a summary line, a flag on uncertain matches only,
+   an `--explain` mode?
+
+8. **Canonical repack fidelity.** A repacked `.dawproject` is byte-identical per entry
+   but not as a container. Do the target DAWs accept a regenerated archive in all
+   cases — entry ordering, compression method, directory layout — and what is the
    canonical form the core writes?
-5. **DAWproject schema evolution.** The format is young and will change. How does the
-   core handle sessions written against a newer schema than it understands, and what
-   is the policy for parsing versus passing through elements it does not recognize?
-   Getting this right is what lets the project inherit the format's growth for free
-   rather than needing a release for every spec change.
-6. **Whether mode can vary within a repository.** Mode is currently a property of
-   the whole repository. Does a branch-heavy workflow want a single-DAW branch off a
-   cross-DAW trunk — a Studio One branch that uses everything Studio One offers,
-   while the trunk stays portable — and if so, what happens when such a branch is
-   the one a collaborator wants to build on?
-7. **Offline/async sync model.** The sync sequence assumes both peers are online
-   simultaneously. Does the product need an async path (push to a staging point, pull
-   later) for the common case where collaborators are rarely online at the same time,
-   and if so, does that content ever transiently touch third-party storage?
-8. **NAT traversal and relay approach.** Most consumer networks sit behind NAT.
-   What's the concrete plan for direct connectivity (STUN-like hole punching,
-   QUIC-based traversal, or something else), and what's the fallback relay's trust
-   and cost model?
-9. **Key recovery and device revocation.** If a device's private key is lost
-   (reinstall, hardware failure), how does the user regain access to their projects
-   and collaborations? How is a compromised or decommissioned device's identity
-   revoked from a project's collaborator set?
-10. **Protocol formalization and compatibility policy.** The sync protocol currently
+
+9. **Whether opaque files are worth tracking at all.** The native project file is
+   currently tracked as an opaque blob, which is cheap for a Studio One `.song` but
+   expensive for DAWs whose native format embeds all audio in one monolithic file. If
+   the same-DAW round trip proves faithful, tracking it may be unnecessary entirely;
+   if not, some native formats may be too large to store whole. Which opaque files are
+   worth keeping, and does the answer differ per DAW?
+
+10. **On-disk repository layout and OS conventions.** Where do the object store,
+    config, and key material live on each platform, and what happens when a project
+    directory is moved, renamed, or opened from multiple accounts on the same machine?
+
+11. **Multi-project and nested-repository behavior.** Can a single working directory
+    contain more than one versioned project, or be nested inside another? Git has
+    well-known sharp edges here; this needs an explicit decision rather than
+    inheriting Git's behavior by default.
+
+### P2 — blocks the first networked milestone
+
+12. **Content-defined chunking and compression.** Unpacking the archive removes most
+    of the pressure here, since audio deduplicates and only small XML changes land per
+    commit. Is any chunking or packfile layer needed at all for realistic sessions, or
+    does raw per-object storage suffice? The MVP's measured growth (see
+    [MVP.md](MVP.md#success-criteria)) is the evidence.
+
+13. **DAWproject schema evolution.** The format is young and will change. How does the
+    core handle sessions written against a newer schema than it understands, and what
+    is the policy for parsing versus passing through elements it does not recognize?
+    Getting this right is what lets the project inherit the format's growth for free
+    rather than needing a release for every spec change.
+
+14. **Offline/async sync model.** The sync sequence assumes both peers are online
+    simultaneously. Does the product need an async path — push to a staging point,
+    pull later — for the common case where collaborators are rarely online at the same
+    time, and if so, does that content ever transiently touch third-party storage?
+
+15. **NAT traversal and relay approach.** Most consumer networks sit behind NAT.
+    What's the concrete plan for direct connectivity (STUN-like hole punching,
+    QUIC-based traversal, or something else), and what's the fallback relay's trust
+    and cost model? A relay implies a server, which is in tension with "we host the
+    collaboration, you own the files" — that tension needs stating plainly either way.
+
+16. **Key recovery and device revocation.** If a device's private key is lost
+    (reinstall, hardware failure), how does the user regain access to their projects
+    and collaborations? How is a compromised or decommissioned device's identity
+    revoked from a project's collaborator set?
+
+17. **Threat model for P2P sync.** What happens when a peer sends malformed,
+    oversized, or maliciously crafted objects — or a `project.xml` designed to attack
+    the parser? What concrete resource limits (transfer size, session duration, object
+    count, parse depth) must the sync engine enforce?
+
+### P3 — blocks calling this a product
+
+18. **Why does this survive where Splice Studio did not?** Splice shut down its Studio
+    collaboration platform in 2023, its CEO noting that users "have many great
+    alternatives for file sharing". That is the strongest available evidence that
+    producers do not experience this as a problem worth changing tools for. The thesis
+    here is different — structured diff on an open format, rather than file sync — but
+    the demand question is unanswered, and no amount of engineering answers it.
+
+19. **Whether mode can vary within a repository.** Mode is currently a property of the
+    whole repository. Does a branch-heavy workflow want a single-DAW branch off a
+    cross-DAW trunk — a Studio One branch that uses everything Studio One offers,
+    while the trunk stays portable — and if so, what happens when such a branch is the
+    one a collaborator wants to build on?
+
+20. **Protocol formalization and compatibility policy.** The sync protocol currently
     lives inside the core's design. At what point does it become the separate,
     formally versioned `protocol` component described in
     [`ARCHITECTURE.md`](../.docs/ARCHITECTURE.md#components), and what's the
     compatibility policy between core versions once real users depend on sync?
-11. **Threat model for P2P sync.** What happens when a peer sends malformed,
-    oversized, or maliciously crafted objects — or a `project.xml` designed to attack
-    the parser? What concrete resource limits (transfer size, session duration,
-    object count, parse depth) must the sync engine enforce?
-12. **On-disk repository layout and OS conventions.** Where do the object store,
-    config, and key material live on each platform, and what happens when a project
-    directory is moved, renamed, or opened from multiple accounts on the same
-    machine?
-13. **Multi-project and nested-repository behavior.** Can a single working directory
-    contain more than one versioned project, or be nested inside another? Git has
-    well-known sharp edges here; this needs an explicit decision rather than
-    inheriting Git's behavior by default.

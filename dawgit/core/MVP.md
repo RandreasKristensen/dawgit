@@ -16,31 +16,102 @@ and the [architecture reference](../.docs/ARCHITECTURE.md) for how this fits.
 The trial case is real and specific: a producer working in Studio One Professional,
 and a second person on the other end of the repository.
 
+A naming note, since it will otherwise cause confusion: **PreSonus Studio One Pro was
+rebranded Fender Studio Pro in January 2026.** These documents say "Studio One"
+throughout, because that is what the versions carrying DAWproject support are called
+and what the trial user has installed. It is the same product and the same development
+team.
+
 ## Step zero: the round-trip experiment
 
 Before any code, run the measurement the whole design rests on, because nobody has
-published it: **export a real Studio One session to `.dawproject`, import it back
-into Studio One, and compare.** Then re-export the imported version and diff the two
+published it: **export a real session to `.dawproject`, import it back into the same
+DAW, and compare.** Then re-export the imported version and diff the two
 `project.xml` files against each other.
 
 Every documented DAWproject fidelity gap is a gap between two *different* DAWs. None
 of them necessarily applies to a session that leaves and returns to the same one.
-This is an afternoon's work and it decides three things:
+This is an afternoon's work, and the full protocol is in
+[`.docs/DAWproject-format-test/`](../.docs/DAWproject-format-test/README.md) — run
+**Waveform Free first**, because it costs nothing and no licence.
+
+It decides four things:
 
 - Whether the DAW's native project file needs tracking at all, or whether the
   `.dawproject` alone is a complete record of the session.
 - Whether audio inside the archive is byte-identical to the audio in the session
   folder, which decides whether content addressing deduplicates it for free or stores
   it twice.
-- **Whether element ids are stable across exports.** Export an unchanged session
-  twice and diff the two `project.xml` files. If ids are regenerated each time, an
-  unmodified session looks completely rewritten — which degrades diff badly and makes
-  the general merge of
-  [stage two](Requirements.md#stage-two--merge) impossible. This is the single most
-  consequential thing the experiment measures.
+- **Whether element ids are stable across exports** — which decides whether tier 1 of
+  the [correspondence ladder](Requirements.md#element-correspondence) is available for
+  tracks, channels and devices.
+- **Whether clip content keys are usable, and how often they collide** — which decides
+  whether tier 2 carries the clip layer or tier 3 has to be built.
 
-Record the answer. Everything below assumes the round trip is good enough to build
-on; if it isn't, the opaque files stay and the scope grows.
+### This produces a tier, not a verdict
+
+An earlier version of this document treated stable ids as the thing the design lived
+or died by. That was wrong on a point of fact, and the correction matters enough to
+state plainly: in
+[`Project.xsd`](https://github.com/bitwig/dawproject/blob/main/Project.xsd) the `clip`
+type extends `nameable`, while `id` is declared on `referenceable`. **Clips have no
+ids in any DAW.** The clip layer was never going to be identified by id, so an id
+failure cannot take away something the format never offered.
+
+What identifies clips instead is a content key — media path plus in/out points — which
+is the same technique commercial reconform tools have used in audio post for over a
+decade. So the experiment's job is to say *which tier each class of element lands on*,
+and everything downstream is written against tiers rather than against a single
+assumption.
+
+Record the answer in the results tables. The scope below assumes tier 1 for tracks and
+tier 2 or 3 for clips; if the measurement is worse, the
+[open questions](Requirements.md#open-questions) say what changes.
+
+## After the test — upstream
+
+The step after the measurement is **not code. It is Bitwig.**
+
+The evidence from step zero is the only thing that makes an upstream conversation
+worth anyone's time, and there is a specific reason to have it. The format is young
+and still being extended — lyrics, chords and video are on its roadmap — so this is
+the window in which a small, cheap guarantee could still be added. Once implementations
+harden, it closes.
+
+The approach is fixed by what the upstream repository actually responds to:
+
+- [Issue #40](https://github.com/bitwig/dawproject/issues/40) has asked for exactly
+  this guarantee since January 2023 and has **no maintainer response**.
+- The same repository has merged outside contributors' pull requests steadily from
+  2021 through 2024 — six of them from the author of ProjectConverter alone.
+
+**The repository responds to artifacts, not to requests.** So the deliverable is a
+reproducible harness plus measured per-DAW results, not a well-argued comment.
+
+Sequence:
+
+1. Run the test. Publish the results, pass or fail.
+2. Make [`compare.py`](../.docs/DAWproject-format-test/compare.py) runnable
+   standalone against anyone's exports, so a maintainer can reproduce it on their own
+   build.
+3. Take the **cheap ask** first: a stability guarantee on ids that already exist. That
+   is a constraint on an existing code path, not a feature — no UI, no docs, no
+   support cost — and it benefits every consumer of the format. The expensive ask
+   (a scriptable export hook, see
+   [open question 1](Requirements.md#open-questions)) is the follow-on that gets
+   earned, not the opener.
+4. Target **Bitwig, not Studio One.** Bitwig co-authored the format, publishes a
+   documented controller API, and demonstrably merges outsiders' code. Studio One's
+   scripting engine exists but has never been exposed publicly, and its vendor has
+   shown no interest in exposing it. Studio One is the trial *user*; Bitwig is the
+   standards *partner*. Those are different relationships and only one of them is
+   currently reachable.
+
+There is one cheap check worth doing in the same week as the test, because it could
+retire the biggest usability risk in the design outright: **does Bitwig's controller
+API expose the DAWproject export action?** If it does, automated commits are already
+possible on at least one DAW today. Bitwig's API reference is in-app under
+Help > Documentation > Developer Resources.
 
 ## In scope
 
@@ -70,6 +141,12 @@ on; if it isn't, the opaque files stay and the scope grows.
   added, removed, and modified tracks and clips — not just "the project changed".
   This is the thesis of the whole format bet and the most important thing to
   validate.
+- **Correspondence by tier.** Diff matches elements using the ladder in
+  [Requirements.md](Requirements.md#element-correspondence), starting at the highest
+  tier the format test showed to be available. The MVP must implement tiers 1, 2 and
+  4; **tier 3 is required only if the test shows keys colliding**, which for any
+  session with repeated material it will. Every match records which tier produced it,
+  because that is what tells a user how much to trust a line of the diff.
 - **Checkout / restore.** Materialize any commit back onto disk: the archive
   repacked canonically with every entry's content byte-identical, and every opaque
   file restored byte-for-byte.
@@ -117,6 +194,12 @@ dawgit switch <name|commit>    # move to a branch or an earlier commit
   premise is wrong.
 - `dawgit diff` across a commit that added a guitar track names that track. Across a
   commit that changed a mix, it says something a human recognizes as what they did.
+- `dawgit diff` across a commit that **moved one instance of a repeated loop** reports
+  that one clip moved — not that every instance of the loop changed. This is the
+  narrowest test of whether tier 3 works, and it is the case the content-key technique
+  is weakest at.
+- Every diff line states the tier its match came from, and a diff the core cannot
+  resolve says so rather than guessing silently.
 - Measured on-disk growth per commit is recorded. The prediction is that growth is
   roughly the size of the `project.xml` delta, with audio stored once — if measurement
   contradicts that, the storage questions in
@@ -140,6 +223,10 @@ Stated plainly, so the experiment is honest:
   built. If a session cannot survive leaving and returning to its own DAW, the format
   is not yet ready to be a repository format, and the opaque files carry the weight
   until it is.
+- **That inferred correspondence is trustworthy enough to show a user.** Tiers 3 and
+  4 guess. A diff that confidently reports the wrong clip as moved is worse than one
+  that says it cannot tell, so the MVP has to surface tier alongside every match and
+  find out whether people accept the uncertainty or stop believing the tool.
 
 ## Non-goals
 

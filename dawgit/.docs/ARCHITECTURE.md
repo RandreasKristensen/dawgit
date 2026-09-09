@@ -12,6 +12,11 @@ directory (the Rust versioning engine) currently exists — see
 [`core/MVP.md`](../core/MVP.md) and [`core/Requirements.md`](../core/Requirements.md)
 for what is actually being built and why.
 
+**The next action is not code.** It is the format test in
+[`DAWproject-format-test/`](DAWproject-format-test/README.md), which measures what
+this architecture assumes. The action after that is
+[taking the result upstream](../core/MVP.md#after-the-test--upstream).
+
 ## Product framing
 
 Three ideas:
@@ -67,6 +72,51 @@ Checkout repacks the archive canonically. Every entry's content is byte-identica
 what was committed; the ZIP container itself is regenerated rather than preserved
 byte-for-byte.
 
+### Why DAWproject and not a native format
+
+The obvious alternative was considered and rejected, and the reasoning belongs on the
+record because the alternative is genuinely stronger on several axes.
+
+Reaper's `.RPP` is the strongest competing substrate. It is text, it is written on
+every save so there is **no export step at all**, and its tracks and devices carry
+GUIDs — persistent identity is structural rather than hoped for. Reaper also ships a
+real CLI and a scripting API, its users are technical enough to run one, and some of
+them already version projects with plain `git`. On capture friction, element identity
+and round-trip fidelity — three of this design's four largest risks — a Reaper-native
+tool wins outright, because for those risks it has no round trip and no export to lose
+anything in.
+
+It was rejected anyway, for reasons that are strategic rather than technical:
+
+- **The ceiling is owned by one vendor and undocumented.** `.RPP` has no published
+  specification, no compatibility policy, and no upstream to file against. Community
+  parsers are reverse-engineered and can break on any release. DAWproject is
+  specified, versioned at 1.0, MIT-licensed, with a public issue tracker and an open
+  repository that merges outside contributions.
+- **It would be permanently single-DAW.** Cross-DAW collaboration — the reason project
+  mode exists at all — is not degraded by choosing Reaper, it is ended.
+- **The diff surface is worse, not better.** `.RPP` interleaves structure, base64
+  plugin state and UI state in one file, so a single knob turn rewrites kilobytes in
+  the middle of the text and every commit re-stores the whole thing. Unpacking a
+  DAWproject archive keeps plugin state in separate entries, where an untouched plugin
+  keeps its hash and never appears in a diff at all.
+- **The problem is partly solved there already.** Reaper ships incremental "save new
+  version" and timestamped auto-save, and `git` on an `.RPP` is an established
+  practice. Building there means competing with a native feature plus `git init`.
+
+The honest summary of the trade is **variance against reliability**. Reaper is the
+lower-ceiling, higher-confidence option. DAWproject is the higher-ceiling,
+higher-variance one: gated on unknowns this project does not control, but if the
+format succeeds the engine rides it into every DAW that adopts, and cross-DAW
+versioning becomes a real product rather than a compatibility note.
+
+This project takes the higher-variance bet deliberately. Being early to a format that
+might become a standard is worth more here than re-solving a solved problem for one
+DAW, and a documented failure against an open standard is itself a useful result in a
+way that a working tool for a niche format is not. What that bet costs is written into
+[the open questions](../core/Requirements.md#open-questions) rather than hidden, and
+question 3 there records what evidence would reopen it.
+
 ### Being explicit about what is supported
 
 DAWproject is a young format and its implementations are uneven. Not everything a DAW
@@ -105,6 +155,66 @@ necessarily applies. If the round trip is faithful, the native project file is
 unnecessary and can stop being tracked at all. If it is not, the native file stays as
 a safety net while the gaps close upstream. Either way it is an afternoon's
 experiment, and [MVP.md](../core/MVP.md) runs it first.
+
+The experiment produces a **tier**, not a pass or a fail. See
+[element correspondence](#element-correspondence) below.
+
+## Element correspondence
+
+Diff and merge both reduce to one question: given an element in one commit, which
+element in another is the same element? The format does not answer this uniformly, so
+the core answers it with a ladder of strategies — ids where they exist and persist,
+content keys for audio clips, assignment where those keys collide, name and position
+for everything else, and opaque comparison as the floor. Every match records the tier
+that produced it, and the core never presents an inferred match as an exact one.
+
+This is architecture rather than implementation detail because it decides what diff
+can claim and what merge is allowed to touch. The full ladder, the schema facts that
+fix its shape, and the requirements that follow are in
+[Requirements.md](../core/Requirements.md#element-correspondence).
+
+Two things are worth stating here, because they are frequently assumed the other way:
+
+- **Clips carry no `id` in DAWproject, in any DAW.** The schema puts `id` on
+  `referenceable`, and `clip` extends `nameable`. Content-key matching is not a
+  fallback for the clip layer; it is the only mechanism the format permits. An id
+  failure therefore cannot take away something clips never had.
+- **The problem is solved commercially elsewhere.** Audio post-production has been
+  diffing timelines without shared identity for over a decade — Conformalizer,
+  Matchbox, Vordio. The technique transfers. The assumption those tools rely on, that
+  a clip's media key is unique, does not: music production repeats material
+  constantly, which is why the ladder has an assignment tier the reconform world can
+  mostly skip.
+
+## Relationship to the format
+
+Building on someone else's standard makes that relationship part of the architecture,
+not a footnote. Two consequences follow.
+
+**The engine's capability is bounded by the format's, so influencing the format is
+part of the work.** The format is young and still being extended — lyrics, chords and
+video are on its roadmap — which means the window in which a small guarantee can still
+be added to it is open now. The most valuable such guarantee, and the cheapest for a
+vendor to honour, is **stability of the ids that already exist**: a constraint on an
+existing code path rather than a feature, with no UI, docs or support cost, benefiting
+every consumer of the format rather than this project alone.
+
+**Upstream responds to artifacts, not to requests.** The evidence for this is direct:
+[issue #40](https://github.com/bitwig/dawproject/issues/40) has asked for exactly that
+guarantee since January 2023 with no maintainer response, while the same repository has
+merged outside contributors' pull requests steadily from 2021 through 2024. So the
+deliverable that opens this conversation is a reproducible measurement harness plus
+per-DAW results — which is what
+[`.docs/DAWproject-format-test/`](DAWproject-format-test/README.md) is for, and why
+running it is the next action rather than writing Rust.
+
+**Bitwig is the standards partner; Studio One is the trial user.** Bitwig co-authored
+the format, publishes a documented controller API, and demonstrably merges outside
+code. Studio One has a scripting engine internally but has never exposed it publicly
+and shows no intent to. Those are different relationships, and only one of them is
+currently reachable. There is precedent for the shape of this: ARA was defined by
+Celemony — a small plugin vendor — with PreSonus, shipped first in Studio One, and is
+now implemented by essentially every major DAW.
 
 ## Components
 
@@ -468,8 +578,39 @@ flowchart LR
 
 ## Prior art worth tracking
 
+**The format**
+
 - [DAWproject specification](https://github.com/bitwig/dawproject) — MIT, the format
-  this platform is built on.
+  this platform is built on. [`Project.xsd`](https://github.com/bitwig/dawproject/blob/main/Project.xsd)
+  is the authority on what carries an `id` and what does not.
 - [ProjectConverter](https://github.com/git-moss/ProjectConverter) — converts several
-  native DAW formats to DAWproject without the DAW, a possible path to supporting
-  producers whose DAW has no native export.
+  native DAW formats to and from DAWproject without the DAW. Useful as an **interop
+  escape hatch** — exporting a repository's session to a DAW that cannot read the
+  format — but deliberately *not* used as an ingest path, since routing commits
+  through a third-party conversion would reintroduce every fidelity question the
+  design exists to avoid.
+
+**Timeline correspondence — the reconform problem**
+
+Establishing which element is which across two versions of a timeline, without shared
+identity, is a solved commercial problem in audio post-production. These are the
+reference implementations for tiers 2–4 of
+[element correspondence](../core/Requirements.md#element-correspondence):
+
+- **Conformalizer** — Emmy Award-winning; the original.
+- [Matchbox](https://www.thecargocult.nz/products/matchbox/) — The Cargo Cult, 2020;
+  the current standard, supported in Pro Tools 2025.6. Carries automation and routing
+  through timing changes, and has moved toward matching on content rather than
+  declared metadata.
+- [Vordio](https://vordio.net/reconform/) — FCPXML/AAF into Reaper; classifies every
+  clip as moved, edge-edited, added, deleted or split.
+
+**Precedent for what is being asked of the format**
+
+- [ARA](https://www.celemony.com/en/10-years-of-ara) — Celemony and PreSonus, 2011;
+  an extension standard defined by a small vendor and since adopted by essentially
+  every major DAW. The template for how this project's upstream ask could land.
+- [Pro Tools Scripting SDK](https://www.avid.com/resource-center/pro-tools-scripting-sdk)
+  — Avid, 2022.12; a language-independent API covering session open, save and export.
+  Evidence that a scriptable export hook is a thing vendors do add, including the
+  vendor least expected to.

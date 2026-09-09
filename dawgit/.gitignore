@@ -9,8 +9,14 @@ target/
 
 ## Format test
 # Scratch output from unzipping the .DAWproject files in
-# .docs/DAWproject-format-test/. The archives themselves stay tracked.
+# .docs/DAWproject-format-test/. The archives themselves stay tracked, and so
+# are the generated reports/ - they are the evidence.
 .docs/DAWproject-format-test/extracted/
+
+## Python
+# compare.py is stdlib-only and run directly; nothing here should be committed.
+__pycache__/
+*.py[cod]
 
 ## Environment and local configuration
 # Keep example files such as .env.example tracked; ignore local secrets.

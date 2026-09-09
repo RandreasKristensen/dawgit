@@ -9,7 +9,15 @@ The design decision to read first: DAWproject is not a supported format, it **is
 the repository format. A session's `.dawproject` is unpacked into per-entry blobs and
 is the source of truth for history, diff, and merge; every other file in the
 directory is tracked as an opaque blob with no special meaning. See
-[the architecture reference](../.docs/ARCHITECTURE.md#dawproject-is-the-repository-format).
+[the architecture reference](../.docs/ARCHITECTURE.md#dawproject-is-the-repository-format),
+and [why not a native format](../.docs/ARCHITECTURE.md#why-dawproject-and-not-a-native-format)
+for the alternative that was weighed and rejected.
+
+The second decision to read: diff and merge depend on knowing which element in one
+commit corresponds to which in another, and the format does not answer that uniformly
+— clips carry no `id` at all. The core resolves it with a
+[ladder of strategies](Requirements.md#element-correspondence) and records which one
+produced every match.
 
 - [MVP.md](MVP.md) — the local, single-user, CLI-only slice being built first.
 - [Requirements.md](Requirements.md) — settled long-term requirements, plus the open

@@ -3,7 +3,11 @@
 #
 # Unpacks the exported .DAWproject archives, hashes every entry, and reports
 # what changed between them: entry sets, content hashes, the project.xml diff,
-# and - the point of the whole exercise - whether element ids survived.
+# whether element ids survived, and - because clips carry no id in this format
+# at all - whether content keys can identify clips instead.
+#
+# The output is not pass/fail. It says which tier of the correspondence ladder
+# in README.md this DAW's exports actually support.
 #
 # Pure standard library. Run it from anywhere, with any Python 3.8+:
 #
@@ -14,7 +18,8 @@
 #
 # Output:
 #   extracted/<run>/           unpacked archives (scratch, gitignored)
-#   reports/<run>/             summary.txt, project.xml diffs, id dumps
+#   reports/<run>/             summary.txt, project.xml diffs, id dumps,
+#                              clip dumps
 #
 # See README.md for what the numbers mean.
 
@@ -138,6 +143,140 @@ def id_scheme(entries):
     return "mixed or DAW-specific"
 
 
+def clip_entries(xml_path):
+    # Every Clip in document order, carrying the natural key that the
+    # reconform technique matches on: source media path plus content in/out
+    # points (playStart/playStop).
+    #
+    # This exists because of a schema fact, not a hunch. In Project.xsd the
+    # `clip` type extends `nameable`, while `id` is declared on
+    # `referenceable`. Clips therefore carry NO id in any DAW, by design.
+    # Tracks, channels, devices and timelines are referenceable; clips are
+    # not. Clip correspondence is always inferred, never read.
+    #
+    # See README.md, "The correspondence ladder".
+    entries = []
+    try:
+        tree = ET.parse(xml_path)
+    except Exception as exc:
+        return entries, "unparseable: %s" % exc
+
+    for parent in tree.iter():
+        for elem in list(parent):
+            if local(elem.tag) != "Clip":
+                continue
+            path = None
+            kind = "other"
+            for desc in elem.iter():
+                dl = local(desc.tag)
+                if dl == "File" and desc.attrib.get("path"):
+                    path = desc.attrib["path"]
+                    kind = "audio"
+                    break
+                if dl == "Notes" and kind == "other":
+                    kind = "notes"
+            entries.append({
+                "name": elem.attrib.get("name", ""),
+                "kind": kind,
+                "path": path,
+                "play_start": elem.attrib.get("playStart"),
+                "play_stop": elem.attrib.get("playStop"),
+                "time": elem.attrib.get("time"),
+                "duration": elem.attrib.get("duration"),
+                # Clips/Lanes carry the owning track as an IDREF.
+                "track": parent.attrib.get("track") or parent.attrib.get("id") or "",
+            })
+    return entries, None
+
+
+def clip_key(entry):
+    # Tier 2: source media plus content in/out points. None when the clip has
+    # no media file to key on - MIDI/note clips, most obviously.
+    if not entry["path"]:
+        return None
+    return (entry["path"], entry["play_start"], entry["play_stop"])
+
+
+def group_by_key(entries):
+    groups = {}
+    for e in entries:
+        k = clip_key(e)
+        if k is not None:
+            groups.setdefault(k, []).append(e)
+    return groups
+
+
+def report_clips(left, right, label, report_dir, say):
+    # Measures which tier of the correspondence ladder this session actually
+    # needs. A failed id test is not fatal on its own; what matters is whether
+    # a weaker strategy can carry the clip layer instead.
+    def census(entries, side):
+        kinds = {}
+        for e in entries:
+            kinds[e["kind"]] = kinds.get(e["kind"], 0) + 1
+        shape = ", ".join("%d %s" % (n, k) for k, n in sorted(kinds.items()))
+        keyable = sum(1 for e in entries if clip_key(e) is not None)
+        say("   clips %s : %d total (%s) - %d keyable, %d with no media key"
+            % (side, len(entries), shape or "none", keyable, len(entries) - keyable))
+        return keyable
+
+    keyable_l = census(left, "L")
+    census(right, "R")
+
+    lg, rg = group_by_key(left), group_by_key(right)
+
+    # Collision rate on the left is the question the vordio comment glosses:
+    # "assuming all files have unique names". A loop dropped N times in an
+    # arrangement produces N identical keys and the key alone cannot separate
+    # them.
+    ambiguous = {k: v for k, v in lg.items() if len(v) > 1}
+    in_ambiguous = sum(len(v) for v in ambiguous.values())
+    largest = max([len(v) for v in lg.values()] or [0])
+    say("   keys    : %d distinct on the left, %d clips in colliding groups, largest group %d"
+        % (len(lg), in_ambiguous, largest))
+
+    matched = set(lg) & set(rg)
+    lost = set(lg) - set(rg)
+    fresh = set(rg) - set(lg)
+    # Movement is only readable where the key is unambiguous on both sides.
+    # Inside a colliding group the key cannot say which clip became which, so
+    # those are counted as undecidable rather than silently compared.
+    moved = unmoved = undecidable = 0
+    for k in matched:
+        if len(lg[k]) == 1 and len(rg[k]) == 1:
+            if lg[k][0]["time"] != rg[k][0]["time"]:
+                moved += 1
+            else:
+                unmoved += 1
+        else:
+            undecidable += 1
+    say("   match   : %d keys matched, %d only left, %d only right"
+        % (len(matched), len(lost), len(fresh)))
+    say("             of matched: %d in place, %d moved, %d undecidable (colliding key)"
+        % (unmoved, moved, undecidable))
+
+    # The verdict this whole block exists to produce.
+    if keyable_l == 0 and left:
+        say("             TIER 2 UNAVAILABLE - no clip carries a media key here")
+    elif len(left) - keyable_l > 0:
+        say("             tier 2 covers audio clips only; %d clip(s) need tier 4 (name + position)"
+            % (len(left) - keyable_l))
+    if largest > 1:
+        say("             keys COLLIDE - tier 3 (assignment by position) is required, not optional")
+    elif lg:
+        say("             keys are unique in this session - tier 2 resolves clips on its own")
+
+    for side, entries in (("left", left), ("right", right)):
+        path = os.path.join(report_dir, "%s.clips-%s.txt" % (label, side))
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("# name  kind  time  duration  playStart  playStop  path\n")
+            for e in entries:
+                fh.write("%-20s %-6s %-10s %-10s %-10s %-10s %s\n"
+                         % (e["name"] or "-", e["kind"], e["time"] or "-",
+                            e["duration"] or "-", e["play_start"] or "-",
+                            e["play_stop"] or "-", e["path"] or "-"))
+
+
 def compare(label, left_root, right_root, decides, report_dir, out):
     def say(line=""):
         out.append(line)
@@ -227,6 +366,13 @@ def compare(label, left_root, right_root, decides, report_dir, out):
             fh.write("# %s\n" % root.replace(os.sep, "/"))
             for tag, name, eid in entries:
                 fh.write("%-24s %-24s %s\n" % (tag, name, eid))
+
+    left_clips, lcerr = clip_entries(lx)
+    right_clips, rcerr = clip_entries(rx)
+    if lcerr or rcerr:
+        say("   clips   : %s" % (lcerr or rcerr))
+    else:
+        report_clips(left_clips, right_clips, label, report_dir, say)
     say("")
 
 
