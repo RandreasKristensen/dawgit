@@ -80,13 +80,13 @@ on; if it isn't, the opaque files stay and the scope grows.
 Suggested command surface:
 
 ```
-gfm init                    # start versioning the current directory
-gfm status                  # what changed since the last commit
-gfm commit -m "<message>"   # snapshot the current session
-gfm log                     # list commit history
-gfm diff <commit> <commit>  # structured comparison of two versions
-gfm branch <name>           # create a branch at the current commit
-gfm switch <name|commit>    # move to a branch or an earlier commit
+dawgit init                    # start versioning the current directory
+dawgit status                  # what changed since the last commit
+dawgit commit -m "<message>"   # snapshot the current session
+dawgit log                     # list commit history
+dawgit diff <commit> <commit>  # structured comparison of two versions
+dawgit branch <name>           # create a branch at the current commit
+dawgit switch <name|commit>    # move to a branch or an earlier commit
 ```
 
 ## Out of scope for this MVP
@@ -107,15 +107,15 @@ gfm switch <name|commit>    # move to a branch or an earlier commit
 
 ## Success criteria
 
-- `gfm init` on a real Studio One session directory succeeds and starts tracking it.
+- `dawgit init` on a real Studio One session directory succeeds and starts tracking it.
 - Editing the song in Studio One, re-exporting the `.dawproject`, and running
-  `gfm commit` produces a new commit; checking it out restores a session that opens
+  `dawgit commit` produces a new commit; checking it out restores a session that opens
   normally in Studio One.
 - The repacked `.dawproject` from a checkout imports successfully into Studio One,
   **and** into at least one other DAW that supports the format. This is what makes
   "cross-DAW" a tested claim rather than an assertion; if it doesn't hold, the
   premise is wrong.
-- `gfm diff` across a commit that added a guitar track names that track. Across a
+- `dawgit diff` across a commit that added a guitar track names that track. Across a
   commit that changed a mix, it says something a human recognizes as what they did.
 - Measured on-disk growth per commit is recorded. The prediction is that growth is
   roughly the size of the `project.xml` delta, with audio stored once — if measurement

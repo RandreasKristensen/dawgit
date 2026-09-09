@@ -1,8 +1,8 @@
-# Git for Music — Architecture Reference
+# DAWgit — Architecture Reference
 
 > We host the collaboration. You own the files.
 
-Git for Music is version control for music production projects, built around
+DAWgit is version control for music production projects, built around
 **DAWproject** — the open, MIT-licensed project interchange format created by Bitwig
 and PreSonus, and supported by Studio One, Bitwig Studio, Cubase, Cubasis, VST Live
 and n-Track.
@@ -130,7 +130,7 @@ above, and the diagram to read first.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"background":"#ffffff","primaryColor":"#93c5fd","primaryTextColor":"#1e3a5f","primaryBorderColor":"#60a5fa","lineColor":"#5b7c99","secondaryColor":"#93c5fd","tertiaryColor":"#ffffff","clusterBkg":"#bfdbfe","clusterBorder":"#60a5fa","titleColor":"#1e3a5f","fontFamily":" sans-serif"}}}%%
-%% Git for Music — Project Ingestion
+%% DAWgit — Project Ingestion
 flowchart LR
 
     subgraph BACKGROUND
@@ -182,7 +182,7 @@ content is never persisted by any service.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"background":"#ffffff","primaryColor":"#93c5fd","primaryTextColor":"#1e3a5f","primaryBorderColor":"#60a5fa","lineColor":"#5b7c99","secondaryColor":"#93c5fd","tertiaryColor":"#ffffff","clusterBkg":"#bfdbfe","clusterBorder":"#60a5fa","titleColor":"#1e3a5f","fontFamily":" sans-serif"}}}%%
-%% Git for Music — System Overview
+%% DAWgit — System Overview
 flowchart TB
 
     subgraph BACKGROUND

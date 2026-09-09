@@ -1,4 +1,4 @@
-# Git for Music
+# DAWgit
 
 Version control for music production projects, built on the open
 [DAWproject](https://github.com/bitwig/dawproject) interchange format.
