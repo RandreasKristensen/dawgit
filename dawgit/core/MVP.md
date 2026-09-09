@@ -4,7 +4,7 @@
 
 Answer the question the whole platform now rests on: **does building on DAWproject
 actually deliver a useful version history for a real session?** Concretely — can a
-Studio One song be committed, branched, returned to, and diffed in a way that tells
+Fender Studio Pro song be committed, branched, returned to, and diffed in a way that tells
 you something a folder of dated copies wouldn't, and can it come back out of the
 repository intact?
 
@@ -13,14 +13,8 @@ machine, offline. No sync, no coordination service, no UI, no cryptographic iden
 beyond content hashing. See [Requirements.md](Requirements.md) for what comes after,
 and the [architecture reference](../.docs/ARCHITECTURE.md) for how this fits.
 
-The trial case is real and specific: a producer working in Studio One Professional,
+The trial case is real and specific: a producer working in Fender Studio Pro Professional,
 and a second person on the other end of the repository.
-
-A naming note, since it will otherwise cause confusion: **PreSonus Studio One Pro was
-rebranded Fender Studio Pro in January 2026.** These documents say "Studio One"
-throughout, because that is what the versions carrying DAWproject support are called
-and what the trial user has installed. It is the same product and the same development
-team.
 
 ## Step zero: the round-trip experiment
 
@@ -100,10 +94,10 @@ Sequence:
    (a scriptable export hook, see
    [open question 1](Requirements.md#open-questions)) is the follow-on that gets
    earned, not the opener.
-4. Target **Bitwig, not Studio One.** Bitwig co-authored the format, publishes a
-   documented controller API, and demonstrably merges outsiders' code. Studio One's
+4. Target **Bitwig, not Fender Studio Pro.** Bitwig co-authored the format, publishes a
+   documented controller API, and demonstrably merges outsiders' code. Fender Studio Pro's
    scripting engine exists but has never been exposed publicly, and its vendor has
-   shown no interest in exposing it. Studio One is the trial *user*; Bitwig is the
+   shown no interest in exposing it. Fender Studio Pro is the trial *user*; Bitwig is the
    standards *partner*. Those are different relationships and only one of them is
    currently reachable.
 
@@ -184,11 +178,11 @@ dawgit switch <name|commit>    # move to a branch or an earlier commit
 
 ## Success criteria
 
-- `dawgit init` on a real Studio One session directory succeeds and starts tracking it.
-- Editing the song in Studio One, re-exporting the `.dawproject`, and running
+- `dawgit init` on a real Fender Studio Pro session directory succeeds and starts tracking it.
+- Editing the song in Fender Studio Pro, re-exporting the `.dawproject`, and running
   `dawgit commit` produces a new commit; checking it out restores a session that opens
-  normally in Studio One.
-- The repacked `.dawproject` from a checkout imports successfully into Studio One,
+  normally in Fender Studio Pro.
+- The repacked `.dawproject` from a checkout imports successfully into Fender Studio Pro,
   **and** into at least one other DAW that supports the format. This is what makes
   "cross-DAW" a tested claim rather than an assertion; if it doesn't hold, the
   premise is wrong.

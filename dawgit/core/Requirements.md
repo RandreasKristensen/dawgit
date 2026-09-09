@@ -415,7 +415,7 @@ now would be working ahead of the evidence.
    canonical form the core writes?
 
 9. **Whether opaque files are worth tracking at all.** The native project file is
-   currently tracked as an opaque blob, which is cheap for a Studio One `.song` but
+   currently tracked as an opaque blob, which is cheap for a Fender Studio Pro `.song` but
    expensive for DAWs whose native format embeds all audio in one monolithic file. If
    the same-DAW round trip proves faithful, tracking it may be unnecessary entirely;
    if not, some native formats may be too large to store whole. Which opaque files are
@@ -476,7 +476,7 @@ now would be working ahead of the evidence.
 
 19. **Whether mode can vary within a repository.** Mode is currently a property of the
     whole repository. Does a branch-heavy workflow want a single-DAW branch off a
-    cross-DAW trunk — a Studio One branch that uses everything Studio One offers,
+    cross-DAW trunk — a Fender Studio Pro branch that uses everything Fender Studio Pro offers,
     while the trunk stays portable — and if so, what happens when such a branch is the
     one a collaborator wants to build on?
 

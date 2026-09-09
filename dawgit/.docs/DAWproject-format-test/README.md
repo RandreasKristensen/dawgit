@@ -78,12 +78,12 @@ key at all, and repeated loops collide. The technique transfers; the assumption 
 keys are unique does not.
 
 **Results are per-DAW, not per-format.** What Waveform does says nothing about what
-Studio One does. So the test runs three times:
+Fender Studio Pro does. So the test runs three times:
 
 | Run | Needs | Answers |
 | --- | --- | --- |
 | 1. [Waveform](#run-1--waveform-free-14) | Waveform Free 14, no licence | Which tier does *a* DAW put us on? |
-| 2. [Studio One](#run-2--studio-one) | Studio One 6.5+ **Pro** | Does the DAW this project is actually aimed at? |
+| 2. [Fender Studio Pro](#run-2--studio-one) | Fender Studio Pro 6.5+ **Pro** | Does the DAW this project is actually aimed at? |
 | 3. [Cross-DAW](#run-3--cross-daw) | both, ideally the same machine | Do the [cross-DAW subset](../../core/Requirements.md#project-mode-cross-daw-or-single-daw) assumptions hold? |
 
 Run 1 first. It costs nothing, and if it fails there is no point borrowing a Studio
@@ -237,9 +237,9 @@ Put the four exports in `waveform/` as `A.DAWproject` … `D.DAWproject`, then:
 python compare.py waveform
 ```
 
-## Run 2 — Studio One
+## Run 2 — Fender Studio Pro
 
-Studio One **6.5 or later, Professional only** — DAWproject is not in Artist. This is
+Fender Studio Pro **6.5 or later, Professional only** — DAWproject is not in Artist. This is
 the DAW that matters most for this project, since it is what the collaborator on the
 first real trial uses.
 
@@ -251,7 +251,7 @@ Build the same base session, following the spec above exactly: same track names,
 order, same three audio files, same three-point automation curve, same VST3 plugin
 with the same parameter moved.
 
-Export and import live under Studio One's DAWproject menu entries; the exact path has
+Export and import live under Fender Studio Pro's DAWproject menu entries; the exact path has
 moved between versions, so **record the path you used** in the results.
 
 Put the four exports in `studio-one/`, then:
@@ -282,7 +282,7 @@ Two files, each an import-then-export in the *other* DAW:
 
 | File | How | Compared against |
 | --- | --- | --- |
-| `cross-daw/waveform-A-via-studio-one.DAWproject` | import `waveform/A.DAWproject` into Studio One, export without editing | `waveform/A` |
+| `cross-daw/waveform-A-via-studio-one.DAWproject` | import `waveform/A.DAWproject` into Fender Studio Pro, export without editing | `waveform/A` |
 | `cross-daw/studio-one-A-via-waveform.DAWproject` | import `studio-one/A.DAWproject` into Waveform, export without editing | `studio-one/A` |
 
 As with `D`, **look at each imported project before exporting** and record what
@@ -306,7 +306,7 @@ survive:
 - The VST3 on `Vox`, loaded, with its moved parameter intact
 
 **Expect the automation curve to be the first thing that breaks.** Users report
-volume, pan and plugin-parameter automation failing to transfer between Studio One
+volume, pan and plugin-parameter automation failing to transfer between Fender Studio Pro
 and Cubase, so a failure here would confirm a known gap rather than reveal a new one —
 but it is a gap in a construct this project's
 [cross-DAW subset](../../core/Requirements.md#project-mode-cross-daw-or-single-daw)
@@ -497,10 +497,10 @@ Visual inspection of the imported project:
 - Combined size if audio were stored once (deduplicated):
 - Did the three `Kick` clips embed the audio once or three times?
 
-### Run 2 — Studio One
+### Run 2 — Fender Studio Pro
 
 **Run date:**
-**Studio One version and edition:**
+**Fender Studio Pro version and edition:**
 **Export menu path used:**
 **Import menu path used:**
 **Plugin used on `Vox`:**
@@ -519,7 +519,7 @@ Visual inspection of the imported project:
 
 #### Storage
 
-#### How Studio One's `project.xml` differs in shape from Waveform's
+#### How Fender Studio Pro's `project.xml` differs in shape from Waveform's
 
 ### Run 3 — Cross-DAW
 
@@ -527,7 +527,7 @@ Visual inspection of the imported project:
 **Same machine, or transferred between two?**
 **VST3 present in both DAWs?**
 
-#### `waveform/A` → Studio One → export
+#### `waveform/A` → Fender Studio Pro → export
 
 - Tracks, names, order intact?
 - Clip positions intact, including all three `Kick` clips?
@@ -559,7 +559,7 @@ Does one direction lose more than the other, and what:
 
 ### Verdict
 
-| | Waveform | Studio One |
+| | Waveform | Fender Studio Pro |
 | --- | --- | --- |
 | 1 — round trip survives | | |
 | 2 — audio deduplicates | | |
@@ -578,7 +578,7 @@ Fill this in per DAW. This is the actual output of the test and the thing
 [Requirements.md](../../core/Requirements.md#element-correspondence) is written
 against.
 
-| Element class | Waveform | Studio One | Cross-DAW |
+| Element class | Waveform | Fender Studio Pro | Cross-DAW |
 | --- | --- | --- | --- |
 | Tracks / channels | | | |
 | Devices / plugins | | | |

@@ -12,7 +12,7 @@
 # Pure standard library. Run it from anywhere, with any Python 3.8+:
 #
 #   python compare.py waveform      A/B/C/D exported from Waveform Free
-#   python compare.py studio-one    A/B/C/D exported from Studio One
+#   python compare.py studio-one    A/B/C/D exported from Fender Studio Pro
 #   python compare.py cross         each DAW's A against its foreign round trip
 #   python compare.py all           every run whose files are present
 #
@@ -52,10 +52,10 @@ RUNS = {
     "cross": [
         ("waveform-through-studio-one",
          "waveform/A", "cross-daw/waveform-A-via-studio-one",
-         "what Studio One keeps of a Waveform export"),
+         "what Fender Studio Pro keeps of a Waveform export"),
         ("studio-one-through-waveform",
          "studio-one/A", "cross-daw/studio-one-A-via-waveform",
-         "what Waveform keeps of a Studio One export"),
+         "what Waveform keeps of a Fender Studio Pro export"),
     ],
 }
 

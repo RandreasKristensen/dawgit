@@ -4,7 +4,7 @@
 
 DAWgit is version control for music production projects, built around
 **DAWproject** — the open, MIT-licensed project interchange format created by Bitwig
-and PreSonus, and supported by Studio One, Bitwig Studio, Cubase, Cubasis, VST Live
+and PreSonus, and supported by Fender Studio Pro, Bitwig Studio, Cubase, Cubasis, VST Live
 and n-Track.
 
 **Status:** this document describes the target architecture. Only the `core/`
@@ -120,8 +120,8 @@ question 3 there records what evidence would reopen it.
 ### Being explicit about what is supported
 
 DAWproject is a young format and its implementations are uneven. Not everything a DAW
-can express survives an export, and what survives differs between DAWs — Studio One
-does not read Bitwig clip launcher data, Bitwig does not read Studio One AU plugin
+can express survives an export, and what survives differs between DAWs — Fender Studio Pro
+does not read Bitwig clip launcher data, Bitwig does not read Fender Studio Pro AU plugin
 state, video tracks do not cross. These are gaps between products, not limits of the
 format, and they will close over time.
 
@@ -148,7 +148,7 @@ The project's response is to be explicit rather than to work around it:
 
 One question sits underneath everything above and has not been answered by anyone,
 because nobody currently uses the format this way: **is a same-DAW round trip
-faithful?** Studio One → `.dawproject` → Studio One, out and back.
+faithful?** Fender Studio Pro → `.dawproject` → Fender Studio Pro, out and back.
 
 Every documented fidelity gap is a gap between two *different* DAWs, so none of them
 necessarily applies. If the round trip is faithful, the native project file is
@@ -208,12 +208,12 @@ per-DAW results — which is what
 [`.docs/DAWproject-format-test/`](DAWproject-format-test/README.md) is for, and why
 running it is the next action rather than writing Rust.
 
-**Bitwig is the standards partner; Studio One is the trial user.** Bitwig co-authored
+**Bitwig is the standards partner; Fender Studio Pro is the trial user.** Bitwig co-authored
 the format, publishes a documented controller API, and demonstrably merges outside
-code. Studio One has a scripting engine internally but has never exposed it publicly
+code. Fender Studio Pro has a scripting engine internally but has never exposed it publicly
 and shows no intent to. Those are different relationships, and only one of them is
 currently reachable. There is precedent for the shape of this: ARA was defined by
-Celemony — a small plugin vendor — with PreSonus, shipped first in Studio One, and is
+Celemony — a small plugin vendor — with PreSonus, shipped first in Fender Studio Pro, and is
 now implemented by essentially every major DAW.
 
 ## Components
@@ -299,7 +299,7 @@ flowchart TB
 
     subgraph CLIENT_A["Collaborator A"]
         direction TB
-        DAW_A["DAW<br/>Studio One / Bitwig / Cubase"]
+        DAW_A["DAW<br/>Fender Studio Pro / Bitwig / Cubase"]
         CORE_A["Rust Core"]
         FILES_A[(".dawproject + session files")]
         STORE_A[("Local Object Store")]
@@ -311,7 +311,7 @@ flowchart TB
 
     subgraph CLIENT_B["Collaborator B"]
         direction TB
-        DAW_B["DAW<br/>Studio One / Bitwig / Cubase"]
+        DAW_B["DAW<br/>Fender Studio Pro / Bitwig / Cubase"]
         CORE_B["Rust Core"]
         FILES_B[(".dawproject + session files")]
         STORE_B[("Local Object Store")]
